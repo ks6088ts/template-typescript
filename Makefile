@@ -23,6 +23,7 @@ install-deps-dev: ## install dependencies for development
 	@which trivy || curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b $(TOOLS_DIR) v$(TRIVY_VERSION)
 	@# https://pnpm.io/installation
 	@which pnpm || npm install -g pnpm
+	pnpm install
 
 .PHONY: format-check
 format-check: ## format check
