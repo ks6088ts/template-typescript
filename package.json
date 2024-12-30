@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "fix:prettier": "prettier --write src",
+    "lint:prettier": "prettier --check src",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
