@@ -29,7 +29,7 @@ jobs:
           version: 9.15.2
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.go-version }}
+          node-version: ${{ matrix.node-version }}
           cache: 'pnpm'
       - name: Run CI tests
         shell: bash
