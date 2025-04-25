@@ -83,3 +83,7 @@ docker-scan: ## scan Docker image
 
 .PHONY: ci-test-docker
 ci-test-docker: install-deps-dev docker-lint docker-build docker-scan docker-run ## run CI test for Docker
+
+.PHONY: update
+update: ## update dependencies
+	pnpm update --latest
