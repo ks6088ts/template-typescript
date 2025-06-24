@@ -27,23 +27,24 @@ install-deps-dev: ## install dependencies for development
 
 .PHONY: format-check
 format-check: ## format check
-	pnpm run lint:prettier
+	pnpm format:check
 
 .PHONY: format
 format: ## format code
-	pnpm run fix:prettier
+	pnpm run format
 
 .PHONY: lint
 lint: ## lint
-	@echo "Yet to be implemented"
+	pnpm lint
+	pnpm typecheck
 
 .PHONY: test
 test: ## run tests
-	@echo "Yet to be implemented"
+	pnpm test
 
 .PHONY: build
 build: ## build applications
-	pnpm run build
+	pnpm build
 
 .PHONY: ci-test
 ci-test: install-deps-dev format-check lint test build ## run CI test

@@ -1,0 +1,9 @@
+{
+  "extends": ["oxlint:recommended"],
+  "ignores": ["dist/*", "node_modules/*"],
+  "rules": {
+    "no-unused-vars": "error",
+    "prefer-const": "error",
+    "no-console": "warn"
+  }
+}
