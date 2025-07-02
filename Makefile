@@ -10,7 +10,7 @@ DOCKER_COMMAND ?=
 # Tools
 TOOLS_DIR ?= /usr/local/bin
 # https://github.com/aquasecurity/trivy/releases
-TRIVY_VERSION ?= 0.58.1
+TRIVY_VERSION ?= 0.64.0
 
 .PHONY: help
 help:
