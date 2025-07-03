@@ -1,12 +1,25 @@
-FROM node:22.12.0-bookworm
+# Build stage
+FROM node:22.17.0-bookworm AS builder
 
 WORKDIR /usr/src/app
 
 COPY package.json pnpm-lock.yaml ./
 
-# pnpm: https://www.npmjs.com/package/pnpm
-RUN npm install -g pnpm@9.15.2 && pnpm install --frozen-lockfile
+RUN npm install -g pnpm@10.12.4 && pnpm install --frozen-lockfile
 
 COPY . .
 
-CMD [ "make", "run" ]
+RUN pnpm build
+
+# Production stage
+FROM node:22.17.0-bookworm-slim AS production
+
+WORKDIR /usr/src/app
+
+COPY package.json pnpm-lock.yaml ./
+
+RUN npm install -g pnpm@10.12.4 && pnpm install --prod --frozen-lockfile
+
+COPY --from=builder /usr/src/app/dist ./dist
+
+CMD [ "node", "dist/src/main.js" ]
