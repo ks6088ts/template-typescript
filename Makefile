@@ -12,6 +12,9 @@ TOOLS_DIR ?= /usr/local/bin
 # https://github.com/aquasecurity/trivy/releases
 TRIVY_VERSION ?= 0.64.0
 
+# Project
+COMMAND ?= src/main.ts
+
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -56,7 +59,7 @@ run: ## run applications
 		--experimental-transform-types \
 		--experimental-detect-module \
 		--no-warnings=ExperimentalWarning \
-		src/main.ts
+		$(COMMAND)
 
 # ---
 # Docker
