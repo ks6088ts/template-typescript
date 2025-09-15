@@ -18,13 +18,13 @@
   "author": "ks6088ts",
   "license": "MIT",
   "devDependencies": {
-    "@biomejs/biome": "2.2.2",
-    "@types/node": "24.3.0",
-    "oxlint": "1.14.0",
+    "@biomejs/biome": "2.2.4",
+    "@types/node": "24.4.0",
+    "oxlint": "1.15.0",
     "typescript": "^5.9.2",
     "vitest": "3.2.4"
   },
   "dependencies": {
-    "commander": "^14.0.0"
+    "commander": "^14.0.1"
   }
 }

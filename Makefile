@@ -36,6 +36,9 @@ format-check: ## format check
 format: ## format code
 	pnpm run format
 
+.PHONY: fix
+fix: format ## apply auto-fixes
+
 .PHONY: lint
 lint: ## lint
 	pnpm lint
