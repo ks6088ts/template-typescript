@@ -18,6 +18,7 @@ RUN pnpm build
 FROM node:22.17.0-alpine AS production
 
 # Install dumb-init for proper signal handling
+# hadolint ignore=DL3018
 RUN apk add --no-cache dumb-init
 
 # Create non-root user for security
