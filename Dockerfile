@@ -1,10 +1,10 @@
-# Define versions for reuse
+# Define base image and tool versions for reuse
 ARG NODE_VERSION=22.17.0
-ARG ALPINE_VARIANT=alpine
+ARG NODE_DISTRO=alpine
 ARG PNPM_VERSION=10.12.4
 
 # Build stage
-FROM node:${NODE_VERSION}-${ALPINE_VARIANT} AS builder
+FROM node:${NODE_VERSION}-${NODE_DISTRO} AS builder
 
 ARG PNPM_VERSION
 
@@ -22,7 +22,7 @@ COPY . .
 RUN pnpm build
 
 # Production stage
-FROM node:${NODE_VERSION}-${ALPINE_VARIANT} AS production
+FROM node:${NODE_VERSION}-${NODE_DISTRO} AS production
 
 ARG PNPM_VERSION
 
