@@ -3,15 +3,15 @@ name: docker
 on:
   push:
     branches:
-      - 'main'
-      - 'feature/**'
+      - "main"
+      - "feature/**"
   pull_request:
     branches:
-      - 'main'
+      - "main"
 
 jobs:
   docker:
-    runs-on: 'ubuntu-latest'
+    runs-on: "ubuntu-latest"
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
@@ -21,7 +21,7 @@ jobs:
       - name: Add to PATH
         shell: bash
         run: |
-          echo "/home/runner/bin" >> $GITHUB_PATH
+          echo "/home/runner/bin" >> "$GITHUB_PATH"
       - name: Run CI tests for Docker
         shell: bash
         run: |
