@@ -33,7 +33,8 @@
       "!dist/**",
       "!coverage/**",
       "!**/*.min.js",
-      "!pnpm-lock.yaml"
+      "!pnpm-lock.yaml",
+      "!.pnpm-store/**"
     ]
   }
 }

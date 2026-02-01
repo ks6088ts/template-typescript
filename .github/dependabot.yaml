@@ -1,3 +1,4 @@
+# https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories
 version: 2
 updates:
   - package-ecosystem: "github-actions"
@@ -5,6 +6,10 @@ updates:
     schedule:
       interval: "weekly"
   - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "devcontainers"
     directory: "/"
     schedule:
       interval: "weekly"
