@@ -18,7 +18,7 @@
   "author": "ks6088ts",
   "license": "MIT",
   "devDependencies": {
-    "@biomejs/biome": "2.4.8",
+    "@biomejs/biome": "2.4.12",
     "@types/node": "25.5.0",
     "oxlint": "1.57.0",
     "typescript": "^6.0.2",
