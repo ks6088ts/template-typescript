@@ -1,5 +1,4 @@
 {
-  "extends": ["oxlint:recommended"],
   "ignorePatterns": ["dist/*", "node_modules/*"],
   "rules": {
     "no-unused-vars": "error",

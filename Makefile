@@ -22,12 +22,15 @@ help:
 
 .PHONY: install-deps-dev
 install-deps-dev: ## install dependencies for development
-	@# https://aquasecurity.github.io/trivy/v0.18.3/installation/#install-script
-	@which trivy || curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b $(TOOLS_DIR) v$(TRIVY_VERSION)
 	@which actionlint || echo "install actionlint https://github.com/rhysd/actionlint"
 	@# https://pnpm.io/installation
 	@which pnpm || npm install -g pnpm
 	pnpm install
+
+.PHONY: install-trivy
+install-trivy: ## install trivy
+	@# https://aquasecurity.github.io/trivy/v0.18.3/installation/#install-script
+	@which trivy || curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b $(TOOLS_DIR) v$(TRIVY_VERSION)
 
 .PHONY: format-check
 format-check: ## format check
@@ -95,4 +98,4 @@ docker-scan: ## scan Docker image
 	trivy image $(DOCKER_REPO_NAME)/$(DOCKER_IMAGE_NAME):$(GIT_TAG)
 
 .PHONY: ci-test-docker
-ci-test-docker: install-deps-dev docker-lint docker-build docker-scan docker-run ## run CI test for Docker
+ci-test-docker: install-deps-dev install-trivy docker-lint docker-build docker-scan docker-run ## run CI test for Docker
