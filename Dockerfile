@@ -1,56 +1,40 @@
-# Define base image and tool versions for reuse
-ARG NODE_VERSION=22.17.0
-ARG NODE_DISTRO=alpine
-ARG PNPM_VERSION=10.12.4
+# syntax=docker/dockerfile:1
+# check=error=true
 
-# Build stage
-FROM node:${NODE_VERSION}-${NODE_DISTRO} AS builder
+FROM --platform=$BUILDPLATFORM node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS builder
 
-ARG PNPM_VERSION
+WORKDIR /app
 
-WORKDIR /usr/src/app
+RUN npm install --global pnpm@12.11.2
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Deliberately avoid mutable cache mounts: release builds must not consume shared caches.
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# Copy package files first for better layer caching
-COPY package.json pnpm-lock.yaml ./
-
-# Install pnpm and dependencies
-RUN npm install -g pnpm@"${PNPM_VERSION}" \
-  && pnpm install --frozen-lockfile
-
-# Copy source code and build
-COPY . .
+COPY tsconfig.json tsconfig.build.json ./
+COPY src/ ./src/
 RUN pnpm build
 
-# Production stage
-FROM node:${NODE_VERSION}-${NODE_DISTRO} AS production
+FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:9eeb7f5887d0e239e78264b06f7f11d2e14be534050481803a9e4728fcdd278e AS production
 
-ARG PNPM_VERSION
+ARG GIT_TAG=unknown
+ARG GIT_REVISION=unknown
 
-# Install dumb-init for proper signal handling
-# hadolint ignore=DL3018
-RUN apk add --no-cache dumb-init
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOST=0.0.0.0 \
+    GIT_TAG=$GIT_TAG \
+    GIT_REVISION=$GIT_REVISION
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs \
-  && adduser -S nextjs -u 1001 -G nodejs
+WORKDIR /app
+COPY --from=builder --chown=65532:65532 /app/package.json ./
+COPY --from=builder --chown=65532:65532 /app/dist/ ./dist/
 
-WORKDIR /usr/src/app
+USER 65532:65532
+EXPOSE 3000
+STOPSIGNAL SIGTERM
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+    CMD ["/nodejs/bin/node", "-e", "const http=require('node:http');const req=http.get({host:'127.0.0.1',port:process.env.PORT||3000,path:'/healthz'},res=>{res.resume();process.exitCode=res.statusCode===200?0:1;});req.setTimeout(2000,()=>{req.destroy();process.exitCode=1;});req.on('error',()=>{process.exitCode=1;});"]
 
-# Install pnpm and production dependencies only
-RUN npm install -g pnpm@"${PNPM_VERSION}" \
-  && pnpm install --prod --frozen-lockfile \
-  && npm cache clean --force \
-  && rm -rf ~/.pnpm-store
-
-# Copy built application from builder stage
-COPY --from=builder --chown=nextjs:nodejs /usr/src/app/dist ./dist
-
-# Switch to non-root user
-USER nextjs
-
-# Use dumb-init for proper signal handling
-ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/src/main.js"]
+ENTRYPOINT ["/nodejs/bin/node"]
+CMD ["dist/main.js"]

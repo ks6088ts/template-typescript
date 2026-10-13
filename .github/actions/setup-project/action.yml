@@ -1,0 +1,24 @@
+name: Set up project
+description: Install the packageManager-pinned pnpm and frozen dependencies
+inputs:
+  node-version:
+    description: Optional compatibility-test override; otherwise use .node-version
+    default: ""
+  cache:
+    description: Whether dependency caching is allowed
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      with:
+        run_install: false
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        node-version-file: .node-version
+        package-manager-cache: false
+        cache: ${{ inputs.cache == 'true' && 'pnpm' || '' }}
+        cache-dependency-path: pnpm-lock.yaml
+    - shell: bash
+      run: pnpm install --frozen-lockfile
