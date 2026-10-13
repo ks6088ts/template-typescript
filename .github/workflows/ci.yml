@@ -2,6 +2,7 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
   push:
     branches: [main]
   merge_group:
@@ -50,6 +51,25 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: ${{ !inputs.release }}
       - run: pnpm test:cov
+      - name: Summarize coverage
+        if: matrix.node == ''
+        run: |
+          node --input-type=module - <<'JS' >> "$GITHUB_STEP_SUMMARY"
+          import { readFileSync } from "node:fs";
+          const { total } = JSON.parse(readFileSync("coverage/coverage-summary.json", "utf8"));
+          process.stdout.write("## Coverage\n\n| Metric | Percent |\n| --- | --- |\n");
+          for (const metric of ["lines", "statements", "functions", "branches"]) {
+            process.stdout.write(`| ${metric} | ${total[metric].pct}% |\n`);
+          }
+          JS
+      - name: Upload coverage
+        if: matrix.node == ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-node24
+          path: coverage/
+          if-no-files-found: error
+          retention-days: 7
 
   build:
     runs-on: ubuntu-24.04
@@ -78,12 +98,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ./scripts/install-actionlint.sh "$PWD/.tools/bin"
-          ./scripts/install-zizmor.sh "$PWD/.tools/bin"
+          ./scripts/install-actionlint.sh "$HOME/.local/bin"
+          ./scripts/install-zizmor.sh "$HOME/.local/bin"
       - name: Validate workflow and shell security
         run: |
-          .tools/bin/actionlint
-          .tools/bin/zizmor --offline --no-progress --min-severity medium .github/workflows .github/actions
+          "$HOME/.local/bin/actionlint"
+          "$HOME/.local/bin/zizmor" --offline --no-progress --min-severity medium .github/workflows .github/actions
           for script in scripts/*.sh .devcontainer/post-create.sh; do bash -n "$script"; done
           shellcheck scripts/*.sh .devcontainer/post-create.sh
 
@@ -110,6 +130,10 @@ jobs:
           node-version-file: .node-version
           package-manager-cache: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          version: v0.38.0
+          cache-binary: false
+          driver-opts: image=moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
       - name: Build Checks
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -133,9 +157,11 @@ jobs:
       - name: Install verified Trivy
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./scripts/install-trivy.sh "$PWD/.tools/bin"
+        run: ./scripts/install-trivy.sh "$HOME/.local/bin"
       - name: Reject fixable critical and high vulnerabilities
-        run: .tools/bin/trivy image --image-src docker --ignore-unfixed --severity CRITICAL,HIGH --exit-code 1 template-typescript:ci
+        run: |
+          "$HOME/.local/bin/trivy" image --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+            --image-src docker --ignore-unfixed --severity CRITICAL,HIGH --exit-code 1 template-typescript:ci
 
   dependency-review:
     if: github.event_name == 'pull_request' && (github.event.repository.private == false || vars.ENABLE_DEPENDENCY_REVIEW == 'true')

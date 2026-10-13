@@ -49,6 +49,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (headersTimeoutMs > requestTimeoutMs) {
     throw new Error("HEADERS_TIMEOUT_MS must not exceed REQUEST_TIMEOUT_MS.");
   }
+  const gitTag = env.GIT_TAG || "unknown";
   return {
     host,
     port: integer(env, "PORT", 3000, 0, 65_535),
@@ -58,8 +59,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     keepAliveTimeoutMs: integer(env, "KEEP_ALIVE_TIMEOUT_MS", 5000, 1, 600_000),
     maxBodyBytes: integer(env, "MAX_BODY_BYTES", 16_384, 1, 1_048_576),
     maxSumItems: integer(env, "MAX_SUM_ITEMS", 1000, 1, 10_000),
-    version: packageVersion,
-    gitTag: env.GIT_TAG ?? "unknown",
+    version: gitTag === "unknown" ? packageVersion : gitTag,
+    gitTag,
     gitRevision: env.GIT_REVISION ?? "unknown",
   };
 }

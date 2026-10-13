@@ -69,7 +69,7 @@ describe("actual entrypoints", () => {
       expect(await response.json()).toEqual({ result: 5 });
       const metadata = await fetch(`http://127.0.0.1:${started.port}/version`);
       expect(await metadata.json()).toMatchObject({
-        version: expect.stringMatching(/^\d+\.\d+\.\d+/),
+        version: "v9.8.7",
         gitTag: "v9.8.7",
         gitRevision: "abc123",
       });

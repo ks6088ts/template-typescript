@@ -65,6 +65,7 @@ describe("release version policy", () => {
   it("rejects an existing prerelease tag and container-incompatible metadata", () => {
     expect(() => prepareRelease("2.0.0-rc.1", ["v2.0.0-rc.1"])).toThrow("already exists");
     expect(() => prepareRelease("2.0.0+build.1", [])).toThrow("omit build metadata");
-    expect(() => prepareRelease(`1.0.0-${"a".repeat(128)}`, [])).toThrow("container tag");
+    expect(prepareRelease(`1.0.0-${"a".repeat(122)}`, []).version).toHaveLength(128);
+    expect(() => prepareRelease(`1.0.0-${"a".repeat(123)}`, [])).toThrow("container tag");
   });
 });

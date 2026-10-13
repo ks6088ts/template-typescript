@@ -9,7 +9,7 @@ if (( $# > 1 )); then
 fi
 tools_dir=${1:-${TOOLS_DIR:-"$HOME/.local/bin"}}
 [[ -n "$tools_dir" ]] || { echo "TOOLS_DIR must not be empty" >&2; exit 2; }
-for tool in gh tar install uname; do
+for tool in gh tar install uname mktemp; do
   command -v "$tool" >/dev/null || { echo "$tool is required" >&2; exit 1; }
 done
 [[ "$(uname -s)" == Linux ]] || { echo "Only Linux is supported" >&2; exit 1; }
@@ -19,10 +19,8 @@ case "$(uname -m)" in
   *) echo "Only Linux x64 and arm64 are supported" >&2; exit 1 ;;
 esac
 
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 umask 077
-staging="$root/.trivy-download.$$.$RANDOM"
-mkdir -- "$staging"
+staging=$(mktemp -d /tmp/template-typescript-trivy.XXXXXX)
 cleanup() { rm -rf -- "$staging"; }
 trap cleanup EXIT
 trap 'exit 130' INT

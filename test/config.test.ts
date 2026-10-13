@@ -48,7 +48,7 @@ describe("configuration", () => {
       keepAliveTimeoutMs: 50,
       maxBodyBytes: 1024,
       maxSumItems: 2,
-      version: packageVersion,
+      version: "v9.8.7",
       gitTag: "v9.8.7",
       gitRevision: "abc123",
     });
@@ -87,4 +87,12 @@ describe("configuration", () => {
   it("can read process environment", () => {
     expect(loadConfig().port).toBeGreaterThanOrEqual(0);
   });
+
+  it.each(["", "unknown"])(
+    "uses the manifest version for an unspecified build tag %j",
+    (GIT_TAG) => {
+      expect(loadConfig({ GIT_TAG }).version).toBe(packageVersion);
+      expect(loadConfig({ GIT_TAG }).gitTag).toBe("unknown");
+    },
+  );
 });

@@ -89,13 +89,17 @@ jobs:
       - name: Install verified Trivy before registry login
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./scripts/install-trivy.sh "$PWD/.tools/bin"
+        run: ./scripts/install-trivy.sh "$HOME/.local/bin"
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           image: tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
           platforms: amd64,arm64
           cache-image: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          version: v0.38.0
+          cache-binary: false
+          driver-opts: image=moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
       - name: Build Checks
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -130,9 +134,11 @@ jobs:
         run: |
           [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
           for arch in amd64 arm64; do
-            .tools/bin/trivy image --image-src remote --platform "linux/$arch" \
+            "$HOME/.local/bin/trivy" image --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+              --image-src remote --platform "linux/$arch" \
               --ignore-unfixed --severity CRITICAL,HIGH --exit-code 1 "$IMAGE@$DIGEST"
-            .tools/bin/trivy image --image-src remote --platform "linux/$arch" \
+            "$HOME/.local/bin/trivy" image --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+              --image-src remote --platform "linux/$arch" \
               --format spdx-json --output "sbom-$arch.spdx.json" "$IMAGE@$DIGEST"
           done
       - name: Attest provenance
@@ -161,14 +167,31 @@ jobs:
           sbom-path: sbom-arm64.spdx.json
           push-to-registry: true
           create-storage-record: false
+      - name: Mint optional repository-scoped publisher App token
+        id: publisher
+        if: vars.RELEASE_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
       - name: Recheck policy, create immutable source tag, then promote the scanned digest
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.publisher.outputs.token || github.token }}
+          APP_CONFIGURED: ${{ vars.RELEASE_APP_CLIENT_ID != '' }}
+          APP_TOKEN_READY: ${{ steps.publisher.outputs.token != '' }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
+          if [[ "$APP_CONFIGURED" == true && "$APP_TOKEN_READY" != true ]]; then
+            echo "The configured publisher App did not provide a token; fallback is prohibited" >&2
+            exit 1
+          fi
           gh api --paginate "repos/$GITHUB_REPOSITORY/tags?per_page=100" --jq '.[].name' |
             node scripts/release-version.ts "$VERSION"
-          # A provisioned tag-creation bypass is required; denial stops promotion.
+          # Active creation rules require the publisher App's provisioned bypass.
+          # Denial stops container tag promotion.
           gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
             -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA"
           tags=(--tag "$IMAGE:$VERSION")

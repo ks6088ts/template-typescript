@@ -55,7 +55,7 @@ export function compareVersions(left: string, right: string): number {
 
 export function prepareRelease(version: string, existingTags: readonly string[]) {
   const parsed = parseVersion(version);
-  if (parsed.build || version.length > 127) {
+  if (parsed.build || version.length > 128) {
     throw new Error("Release versions must fit a container tag and omit build metadata");
   }
   const tag = `v${version}`;

@@ -32,6 +32,8 @@ TypeScript runs directly during development; production builds include only
 `src/`, never tests or maintenance scripts. Node 26 is also tested in CI.
 
 The service exposes `/healthz`, `/readyz`, `/version`, and calculator APIs.
+`/version` reports the build tag and Git revision; untagged local builds fall
+back to the private package's version.
 Invalid requests receive RFC 9457 problem responses. SIGTERM/SIGINT drain
 requests within a bounded deadline. Configuration, structured logs, and tests
 are examples to adapt, not a substitute for application-specific policies.

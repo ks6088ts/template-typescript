@@ -49,7 +49,7 @@ binding=$(docker port "$container" 3000/tcp)
   exit 1
 }
 metadata=$(docker exec "$container" /nodejs/bin/node -p \
-  'JSON.stringify({packageVersion:require("./package.json").version,gitTag:process.env.GIT_TAG??"unknown",gitRevision:process.env.GIT_REVISION??"unknown"})')
+  'JSON.stringify({packageVersion:require("./package.json").version,gitTag:process.env.GIT_TAG||"unknown",gitRevision:process.env.GIT_REVISION??"unknown"})')
 node --input-type=module - "http://$binding" "$metadata" <<'JS'
 import assert from "node:assert/strict";
 

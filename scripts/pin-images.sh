@@ -7,7 +7,19 @@ for tool in docker python3; do
   command -v "$tool" >/dev/null || { echo "$tool is required" >&2; exit 1; }
 done
 
-images=(node:24.21.0-trixie-slim gcr.io/distroless/nodejs24-debian13:nonroot)
+image_refs=$(python3 - "$dockerfile" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+refs = re.findall(r"(?m)^FROM (?:--platform=\S+ )?(\S+)(?: AS \S+)?$", Path(sys.argv[1]).read_text())
+images = [ref.split("@", 1)[0] for ref in refs]
+if len(images) != 2 or len(set(images)) != 2 or any("$" in image or image == "scratch" for image in images):
+    raise SystemExit("Expected two distinct literal registry images in Dockerfile FROM instructions")
+print("\n".join(images))
+PY
+)
+mapfile -t images <<< "$image_refs"
 digests=()
 for image in "${images[@]}"; do
   digest=$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')

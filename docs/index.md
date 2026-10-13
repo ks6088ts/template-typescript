@@ -48,6 +48,10 @@ to enable supported security reporting/secret features using your administrative
 `gh` session. It does not set reviewers, cloud credentials, or an unrestricted
 tag bypass. Unsupported features are reported explicitly. Review the rulesets
 and arrange authorized release-tag bypass before applying them.
+Run CI on the default branch once first: setup resolves the real GitHub Actions
+publisher from that commit's check runs and binds `ci-ok` to it. When importing
+JSON manually, verify **GitHub Actions** is the required check's expected source;
+a name-only status requirement can be spoofed by other status publishers.
 
 - Set Actions' default token permissions to read-only and require full-length
   action SHA references. Restrict actions to reviewed publishers.
