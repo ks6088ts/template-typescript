@@ -1,64 +1,90 @@
-[![test](https://github.com/ks6088ts/template-typescript/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/ks6088ts/template-typescript/actions/workflows/test.yaml?query=branch%3Amain)
-[![docker](https://github.com/ks6088ts/template-typescript/actions/workflows/docker.yaml/badge.svg?branch=main)](https://github.com/ks6088ts/template-typescript/actions/workflows/docker.yaml?query=branch%3Amain)
-[![docker-release](https://github.com/ks6088ts/template-typescript/actions/workflows/docker-release.yaml/badge.svg)](https://github.com/ks6088ts/template-typescript/actions/workflows/docker-release.yaml)
-[![ghcr-release](https://github.com/ks6088ts/template-typescript/actions/workflows/ghcr-release.yaml/badge.svg)](https://github.com/ks6088ts/template-typescript/actions/workflows/ghcr-release.yaml)
+[![CI](https://github.com/ks6088ts/template-typescript/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ks6088ts/template-typescript/actions/workflows/ci.yml)
 
 # template-typescript
 
-A GitHub template repository for TypeScript
+A TypeScript template with a dependency-free HTTP service, CLI, tested lifecycle,
+and security-gated container releases.
 
-## Prerequisites
+## Development
 
-- [Node 22.12.0+](https://nodejs.org/en/download)
-- [pnpm](https://pnpm.io/installation)
-- [GNU Make](https://www.gnu.org/software/make/)
+- Install the exact Node release in `.node-version` (Node 24 LTS).
+- `package.json#packageManager` specifies the exact pnpm version.
+- GNU Make, Docker/Buildx, and GitHub CLI are needed for container/workflow checks.
 
-## Development instructions
-
-### Local development
-
-Use Makefile to run the project locally.
-
-```shell
-# help
-make
-
-# install dependencies for development
+```sh
 make install-deps-dev
+cp .env.example .env
+pnpm dev
+curl http://localhost:3000/healthz
 
-# run tests
-make test
-
-# build applications
-make build
-
-# run CI tests
-make ci-test
-
-# release applications
-make release
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm check:versions
+pnpm test:cov
+pnpm build
+pnpm start
 ```
 
-### Docker development
+`make ci-test` wraps the application checks. `pnpm format` formats and organizes
+imports; Oxlint is the single linter, including type-aware Promise rules.
+TypeScript runs directly during development; production builds include only
+`src/`, never tests or maintenance scripts. Node 26 is also tested in CI.
 
-```shell
-# build docker image
-make docker-build
+The service exposes `/healthz`, `/readyz`, `/version`, and calculator APIs.
+`/version` reports the build tag and Git revision; untagged local builds fall
+back to the private package's version.
+Invalid requests receive RFC 9457 problem responses. SIGTERM/SIGINT drain
+requests within a bounded deadline. Configuration, structured logs, and tests
+are examples to adapt, not a substitute for application-specific policies.
 
-# run docker container
-make docker-run
+```sh
+curl -H 'content-type: application/json' \
+  -d '{"a":2,"b":3}' http://localhost:3000/api/v1/add
+pnpm cli --message World
+pnpm cli add 2 3
+```
 
-# run CI tests in docker container
+## Containers
+
+```sh
+make install-actionlint
+make install-trivy
+export PATH="$HOME/.local/bin:$PATH"
+make docker-lint docker-build docker-scan
 make ci-test-docker
 ```
 
-## Deployment instructions
+Tool installers download fixed releases and verify their GitHub attestations or
+immutable release assets **before** extraction/execution. Authenticate `gh`
+locally; CI supplies a read-only token. Verification failures stop installation.
+The runtime is distroless and non-root, with no shell or package manager.
+The smoke test exercises a read-only filesystem, health checks, and clean stop.
+`bash scripts/pin-images.sh` refreshes verified image digests when updating bases.
 
-### Docker Hub
+## Release and deployment
 
-To publish the docker image to Docker Hub, you need to [create access token](https://app.docker.com/settings/personal-access-tokens/create) and set the following secrets in the repository settings.
+Use the **Release** workflow on the default branch with an unused SemVer version,
+for example `0.1.0` or `0.2.0-rc.1`. Do not push tags to publish.
+Release verification reruns CI without dependency/build caches. GHCR is the
+only publishing registry; Docker Hub credentials are no longer required.
+Prereleases retain their complete version and never update `latest`.
+Stable versions must be newer than the latest stable release.
 
-```shell
-gh secret set DOCKERHUB_USERNAME --body $DOCKERHUB_USERNAME
-gh secret set DOCKERHUB_TOKEN --body $DOCKERHUB_TOKEN
-```
+Configure protected GitHub Environments before using releases or deployments.
+Deployment is optional: provision Azure Container Apps, configure OIDC, and
+set the documented variables. Deployments and rollback use an attested image
+**digest**, not a mutable tag. See [repository setup and migration](docs/index.md).
+
+## Supply-chain policy
+
+Dependencies and GitHub Actions are pinned and updated by Dependabot. pnpm
+rejects versions published less than three days ago, provenance downgrades,
+exotic transitive sources, and unapproved build scripts. Commit the real
+`pnpm-lock.yaml`; CI installs with `--frozen-lockfile`.
+
+Coverage gates: lines/statements 90%, functions 85%, branches 80%.
+Trivy fails on fixable HIGH/CRITICAL findings. Workflow syntax/security checks,
+CodeQL, and dependency review complement application tests.
+
+See [contributing](CONTRIBUTING.md) and [security reporting](.github/SECURITY.md).

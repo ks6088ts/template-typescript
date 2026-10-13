@@ -1,16 +1,27 @@
 {
   "name": "template-typescript",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.0.6",
+  "private": true,
+  "description": "A dependency-free TypeScript service template",
+  "type": "module",
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=24.21.0 <27",
+    "pnpm": "12.11.2"
+  },
   "scripts": {
-    "preinstall": "npx -y only-allow pnpm",
-    "lint": "oxlint",
-    "lint:strict": "oxlint --deny-warnings",
-    "format": "biome format --write .",
-    "format:check": "biome format .",
-    "typecheck": "tsc --noEmit",
-    "build": "tsc --build",
-    "clean": "tsc --build --clean",
+    "preinstall": "node -e \"if (!process.env.npm_config_user_agent?.startsWith('pnpm/12.11.2 ')) { process.stderr.write('Use pnpm@12.11.2\\n'); process.exitCode = 1; }\"",
+    "dev": "node --watch --env-file-if-exists=.env src/main.ts",
+    "start": "node dist/main.js",
+    "cli": "node src/bin/cli.ts",
+    "lint": "oxlint --type-aware --deny-warnings",
+    "lint:strict": "pnpm lint",
+    "format": "biome check --write .",
+    "format:check": "biome ci .",
+    "check:versions": "node scripts/check-versions.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "pnpm clean && tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
     "test": "vitest run",
     "test:cov": "vitest run --coverage"
   },
@@ -18,13 +29,12 @@
   "author": "ks6088ts",
   "license": "MIT",
   "devDependencies": {
-    "@biomejs/biome": "2.4.16",
-    "@types/node": "25.9.3",
-    "oxlint": "1.69.0",
-    "typescript": "^6.0.3",
-    "vitest": "4.1.8"
-  },
-  "dependencies": {
-    "commander": "^15.0.0"
+    "@biomejs/biome": "2.5.15",
+    "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "5.0.3",
+    "oxlint": "1.87.0",
+    "oxlint-tsgolint": "7.0.2003",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
   }
 }

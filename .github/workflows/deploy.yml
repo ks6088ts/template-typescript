@@ -1,0 +1,66 @@
+name: Deploy or rollback by digest
+on:
+  workflow_dispatch:
+    inputs:
+      digest:
+        description: Existing attested sha256 digest (never an image name or tag)
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      digest:
+        required: true
+        type: string
+permissions: {}
+concurrency:
+  group: deploy-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  authorize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require deployment opt-in, the default branch, and a strict digest
+        env:
+          ENABLED: ${{ vars.ENABLE_DEPLOYMENT }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DIGEST: ${{ inputs.digest }}
+        run: |
+          [[ "$ENABLED" == true ]] || { echo "Deployment is not enabled" >&2; exit 1; }
+          [[ "$GITHUB_REF" == "refs/heads/$DEFAULT_BRANCH" ]] || { echo "Deployment requires the default branch" >&2; exit 1; }
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "A sha256 digest with 64 lowercase hexadecimal characters is required" >&2; exit 1; }
+  staging:
+    needs: authorize
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: staging
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/deploy-container
+        with:
+          digest: ${{ inputs.digest }}
+  production:
+    needs: staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/deploy-container
+        with:
+          digest: ${{ inputs.digest }}

@@ -1,18 +1,6 @@
-import { Command } from "commander";
+import { runCli } from "../src/cli.ts";
 
-const program = new Command();
-
-program
-  .name("do_something")
-  .description("A simple script to display a message")
-  .option("-m, --message <message>", "message to display")
-  .action((options) => {
-    if (!options.message) {
-      console.error("Please provide a message using --message option.");
-      process.exit(1);
-    }
-    console.log(`Hello, ${options.message}!`);
-  });
-
-// スクリプトを実行する
-program.parse(process.argv);
+process.exitCode = runCli(process.argv.slice(2), {
+  stdout: (message) => process.stdout.write(message),
+  stderr: (message) => process.stderr.write(message),
+});

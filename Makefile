@@ -1,101 +1,72 @@
 # Git
 GIT_REVISION ?= $(shell git rev-parse --short HEAD)
-GIT_TAG ?= $(shell git describe --tags --abbrev=0 --always | sed -e s/v//g)
+GIT_TAG ?= $(shell git describe --tags --abbrev=0 --always)
 
 # Docker
-DOCKER_REPO_NAME ?= ks6088ts
-DOCKER_IMAGE_NAME ?= template-typescript
-DOCKER_COMMAND ?=
-
-# Tools
-TOOLS_DIR ?= /usr/local/bin
-# https://github.com/aquasecurity/trivy/releases
-TRIVY_VERSION ?= 0.69.3
-
-# Project
+DOCKER_REPO_NAME ?= local
+DOCKER_IMAGE_NAME ?= $(notdir $(CURDIR))
+IMAGE ?= $(DOCKER_REPO_NAME)/$(DOCKER_IMAGE_NAME):$(GIT_TAG)
+TOOLS_DIR ?= $(HOME)/.local/bin
 COMMAND ?= src/main.ts
 
-.PHONY: help
-help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+.PHONY: help install-deps-dev install-trivy install-actionlint install-zizmor workflow-lint format-check format fix lint test build ci-test run docker-build docker-run docker-lint docker-scan ci-test-docker
 .DEFAULT_GOAL := help
 
-.PHONY: install-deps-dev
-install-deps-dev: ## install dependencies for development
-	@which actionlint || echo "install actionlint https://github.com/rhysd/actionlint"
-	@# https://pnpm.io/installation
-	@which pnpm || npm install -g pnpm
-	pnpm install
+help: ## show available commands
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: install-trivy
-install-trivy: ## install trivy
-	@# https://aquasecurity.github.io/trivy/v0.18.3/installation/#install-script
-	@which trivy || curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b $(TOOLS_DIR) v$(TRIVY_VERSION)
+install-deps-dev: ## install the pinned package manager and locked dependencies
+	npm install --global "$$(node -p 'JSON.parse(require("node:fs").readFileSync("package.json", "utf8")).packageManager')"
+	pnpm install --frozen-lockfile
 
-.PHONY: format-check
-format-check: ## format check
+install-trivy: ## install verified Trivy release assets
+	bash scripts/install-trivy.sh "$(TOOLS_DIR)"
+
+install-actionlint: ## install verified actionlint release assets
+	bash scripts/install-actionlint.sh "$(TOOLS_DIR)"
+
+install-zizmor: ## install checksum-pinned zizmor
+	bash scripts/install-zizmor.sh "$(TOOLS_DIR)"
+
+workflow-lint: ## validate workflow syntax and security
+	actionlint
+	zizmor .github/workflows .github/actions
+
+format-check: ## check formatting and import order
 	pnpm format:check
 
-.PHONY: format
-format: ## format code
+format: ## format and organize imports
 	pnpm run format
 
-.PHONY: fix
 fix: format ## apply auto-fixes
 
-.PHONY: lint
-lint: ## lint
+lint: ## check lint, types and toolchain consistency
 	pnpm lint
 	pnpm typecheck
-	actionlint
+	pnpm check:versions
 
-.PHONY: test
-test: ## run tests
-	pnpm test
+test: ## run tests with coverage thresholds
+	pnpm test:cov
 
-.PHONY: build
-build: ## build applications
+build: ## build only production source
 	pnpm build
 
-.PHONY: ci-test
-ci-test: install-deps-dev format-check lint test build ## run CI test
+ci-test: format-check lint test build ## run application CI checks using installed dependencies
 
-.PHONY: run
-run: ## run applications
-	node \
-		--experimental-strip-types \
-		--experimental-transform-types \
-		--experimental-detect-module \
-		--no-warnings=ExperimentalWarning \
-		$(COMMAND)
+run: ## run TypeScript directly
+	node --env-file-if-exists=.env $(COMMAND)
 
-.PHONY: update
-update: ## update dependencies
-	pnpm update --latest
+docker-build: ## build the container image
+	docker build -t "$(IMAGE)" --build-arg GIT_REVISION="$(GIT_REVISION)" --build-arg GIT_TAG="$(GIT_TAG)" .
 
-# ---
-# Docker
-# ---
+docker-run: ## run the HTTP service on port 3000
+	docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges -p 3000:3000 "$(IMAGE)"
 
-.PHONY: docker-build
-docker-build: ## build Docker image
-	docker build \
-		-t $(DOCKER_REPO_NAME)/$(DOCKER_IMAGE_NAME):$(GIT_TAG) \
-		--build-arg GIT_REVISION=$(GIT_REVISION) \
-		--build-arg GIT_TAG=$(GIT_TAG) \
-		.
+docker-lint: ## run Docker Build Checks
+	docker buildx build --check .
 
-.PHONY: docker-run
-docker-run: ## run Docker container
-	docker run --rm $(DOCKER_REPO_NAME)/$(DOCKER_IMAGE_NAME):$(GIT_TAG) $(DOCKER_COMMAND)
+docker-scan: ## fail on fixable high or critical vulnerabilities
+	trivy image --exit-code 1 --severity CRITICAL,HIGH --ignore-unfixed "$(IMAGE)"
 
-.PHONY: docker-lint
-docker-lint: ## lint Dockerfile
-	docker run --rm -i hadolint/hadolint < Dockerfile
-
-.PHONY: docker-scan
-docker-scan: ## scan Docker image
-	trivy image $(DOCKER_REPO_NAME)/$(DOCKER_IMAGE_NAME):$(GIT_TAG)
-
-.PHONY: ci-test-docker
-ci-test-docker: install-deps-dev install-trivy docker-lint docker-build docker-scan docker-run ## run CI test for Docker
+ci-test-docker: docker-lint docker-build docker-scan ## validate the container and graceful shutdown
+	bash scripts/smoke-test.sh "$(IMAGE)"

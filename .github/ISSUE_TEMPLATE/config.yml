@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security reports
+    url: https://github.com/ks6088ts/template-typescript/security/advisories/new
+    about: Report vulnerabilities privately; update this URL for generated repositories.

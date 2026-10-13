@@ -1,0 +1,13 @@
+{
+  "name": "Release tag creation requires a provisioned publisher bypass",
+  "target": "tag",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/tags/v*"],
+      "exclude": []
+    }
+  },
+  "rules": [{ "type": "creation" }]
+}

@@ -1,0 +1,5 @@
+# Replace the template owner with your team's reviewers when creating a repository.
+* @ks6088ts
+/.github/ @ks6088ts
+/Dockerfile @ks6088ts
+/scripts/ @ks6088ts

@@ -1,0 +1,224 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  push:
+    branches: [main]
+  merge_group:
+  workflow_call:
+    inputs:
+      release:
+        description: Require a clean, uncached release validation
+        type: boolean
+        default: false
+permissions: {}
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ inputs.release && github.run_id || 'checks' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !inputs.release }}
+
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+        with:
+          cache: ${{ !inputs.release }}
+      - run: pnpm format:check && pnpm lint && pnpm typecheck && pnpm check:versions
+
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["", "26"]
+    name: tests (Node ${{ matrix.node || '24 from .node-version' }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+        with:
+          node-version: ${{ matrix.node }}
+          cache: ${{ !inputs.release }}
+      - run: pnpm test:cov
+      - name: Summarize coverage
+        if: matrix.node == ''
+        run: |
+          node --input-type=module - <<'JS' >> "$GITHUB_STEP_SUMMARY"
+          import { readFileSync } from "node:fs";
+          const { total } = JSON.parse(readFileSync("coverage/coverage-summary.json", "utf8"));
+          process.stdout.write("## Coverage\n\n| Metric | Percent |\n| --- | --- |\n");
+          for (const metric of ["lines", "statements", "functions", "branches"]) {
+            process.stdout.write(`| ${metric} | ${total[metric].pct}% |\n`);
+          }
+          JS
+      - name: Upload coverage
+        if: matrix.node == ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-node24
+          path: coverage/
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-project
+        with:
+          cache: ${{ !inputs.release }}
+      - run: pnpm build
+
+  workflow-security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install verified workflow validators
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./scripts/install-actionlint.sh "$HOME/.local/bin"
+          ./scripts/install-zizmor.sh "$HOME/.local/bin"
+      - name: Validate workflow and shell security
+        run: |
+          "$HOME/.local/bin/actionlint"
+          "$HOME/.local/bin/zizmor" --offline --no-progress --min-severity medium .github/workflows .github/actions
+          for script in scripts/*.sh .devcontainer/post-create.sh; do bash -n "$script"; done
+          shellcheck scripts/*.sh .devcontainer/post-create.sh
+
+  container:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    name: container (${{ matrix.arch }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          version: v0.38.0
+          cache-binary: false
+          driver-opts: image=moby/buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
+      - name: Build Checks
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          call: check
+      - name: Build local image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          platforms: linux/${{ matrix.arch }}
+          tags: template-typescript:ci
+          build-args: |
+            GIT_REVISION=${{ github.sha }}
+            GIT_TAG=ci
+          pull: true
+          no-cache: ${{ inputs.release }}
+          cache-from: ${{ !inputs.release && format('type=gha,scope=ci-{0}', matrix.arch) || '' }}
+          cache-to: ${{ !inputs.release && format('type=gha,mode=max,scope=ci-{0}', matrix.arch) || '' }}
+      - run: ./scripts/smoke-test.sh template-typescript:ci
+      - name: Install verified Trivy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/install-trivy.sh "$HOME/.local/bin"
+      - name: Reject fixable critical and high vulnerabilities
+        run: |
+          "$HOME/.local/bin/trivy" image --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+            --image-src docker --ignore-unfixed --severity CRITICAL,HIGH --exit-code 1 template-typescript:ci
+
+  dependency-review:
+    if: github.event_name == 'pull_request' && (github.event.repository.private == false || vars.ENABLE_DEPENDENCY_REVIEW == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never
+
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require a Conventional Commit title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([[:alnum:]_. /-]+\))?!?: [^[:space:]].*$'
+          if [[ "$TITLE" == *$'\n'* || ! "$TITLE" =~ $pattern ]]; then
+            echo "PR title must use Conventional Commits, for example: feat(api): add endpoint" >&2
+            exit 1
+          fi
+
+  ci-ok:
+    if: always()
+    needs: [static, tests, build, workflow-security, container, dependency-review, pr-title]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Assert all required checks passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+          REVIEW_REQUIRED: ${{ github.event_name == 'pull_request' && (github.event.repository.private == false || vars.ENABLE_DEPENDENCY_REVIEW == 'true') }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          results = json.loads(os.environ["RESULTS"])
+          required = {"static", "tests", "build", "workflow-security", "container"}
+          if os.environ["IS_PR"] == "true": required.add("pr-title")
+          if os.environ["REVIEW_REQUIRED"] == "true": required.add("dependency-review")
+          failures = [
+              name for name, value in results.items()
+              if value["result"] != "success"
+              and not (name not in required and value["result"] == "skipped")
+          ]
+          if failures:
+              print("Required CI failed: " + ", ".join(failures), file=sys.stderr)
+              sys.exit(1)
+          PY

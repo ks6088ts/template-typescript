@@ -1,1 +1,3 @@
-console.log("Hello, World!");
+import { runServer } from "./runtime.ts";
+
+await runServer();
